@@ -1,0 +1,7 @@
+# ignore piper and .o files
+*.o
+piper
+
+# Other files
+*.pdf
+*~
