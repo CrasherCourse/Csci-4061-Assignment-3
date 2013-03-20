@@ -5,3 +5,5 @@ piper
 # Other files
 *.pdf
 *~
+piper_skeleton.c
+LOGFILE

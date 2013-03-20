@@ -1,2 +1,2 @@
 piper: piper.c
-	gcc -o piper piper.c
+	gcc -o piper -g piper.c

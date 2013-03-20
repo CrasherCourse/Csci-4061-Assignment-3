@@ -59,10 +59,25 @@ int cmd_status[MAX_CMDS_NUM];
 /*******************************************************************************/
 
 int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_CMDS_NUM]){
+    int i = 0;
+    char ** save;
+    char * command;
 
-   fprintf(stderr, "THIS PROGRAM HAS MISSING CODE WHICH YOU HAVE TO WRITE\n");
-   exit(1);
-
+    command = strtok_r(commandLine, "|", save);
+    while(command != NULL)
+    {
+        printf("%d: %s\n", i, command);
+        if(i > 8)                               // Check if there are too many commands
+        {
+            printf("Too many commands!\n");
+            return -1;
+            
+        }
+        cmds[i] = command;                      // Save the command
+        i++;
+        command = strtok_r(NULL, "|", save);
+    }
+    return i;
 }
 
 /*******************************************************************************/
