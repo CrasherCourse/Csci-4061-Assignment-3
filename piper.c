@@ -63,7 +63,7 @@ int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_
     char ** save;
     char * command;
 
-    command = strtok_r(commandLine, "|", save);
+    command = strtok(commandLine, "|");
     while(command != NULL)
     {
         printf("%d: %s\n", i, command);
@@ -75,8 +75,9 @@ int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_
         }
         cmds[i] = command;                      // Save the command
         i++;
-        command = strtok_r(NULL, "|", save);
+        command = strtok(NULL, "|");
     }
+    printf("finished parsing\n");
     return i;
 }
 
@@ -95,7 +96,21 @@ int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_
 
 void parse_command(char input[MAX_CMD_LENGTH],
                    char command[MAX_CMD_LENGTH],
-                   char *argvector[MAX_CMD_LENGTH]){
+                   char *argvector[MAX_CMD_LENGTH])
+{
+    int i = 0;
+    char * token;
+    char ** save;
+    
+    printf("Command: %s", command);
+    token = strtok(command, " ");
+    while(token != NULL)
+    {
+        printf("argv[1]: %s\n", token);
+        argvector[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    
 }
 
 
@@ -106,9 +121,10 @@ void parse_command(char input[MAX_CMD_LENGTH],
 /*******************************************************************************/
 
 void print_info(char* cmds[MAX_CMDS_NUM],
-		int cmd_pids[MAX_CMDS_NUM],
-		int cmd_stat[MAX_CMDS_NUM],
-		int num_cmds) {
+                int cmd_pids[MAX_CMDS_NUM],
+                int cmd_stat[MAX_CMDS_NUM],
+                int num_cmds)
+{
   
 }  
 
@@ -124,13 +140,14 @@ void print_info(char* cmds[MAX_CMDS_NUM],
 /*******************************************************************************/
 
 
-void create_command_process (char cmds[MAX_CMD_LENGTH],   // Command line to be processed
+void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be processed
                      int cmd_pids[MAX_CMDS_NUM],          // PIDs of preceding pipeline processes
                                                           // Insert PID of new command processs
 		             int i)                               // commmand line number being processed
 {
-
-
+    char * argvector[MAX_CMD_LENGTH];
+    parse_command(cmds, cmds, argvector);
+    
 }
 
 
@@ -139,7 +156,8 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],   // Command line to be 
 /*   processes to terminate.                                                    */
 /********************************************************************************/
 
-void waitPipelineTermination () {
+void waitPipelineTermination ()
+{
 
 
 }
