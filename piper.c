@@ -102,15 +102,16 @@ void parse_command(char input[MAX_CMD_LENGTH],
     char * token;
     char ** save;
     
-    printf("Command: %s", command);
-    token = strtok(command, " ");
+    printf("Command: %s\n", input);
+    token = strtok(input, " ");
+    command = token;
     while(token != NULL)
     {
-        printf("argv[1]: %s\n", token);
+        printf("argv[%d]: %s\n", i, token);
         argvector[i++] = token;
         token = strtok(NULL, " ");
     }
-    
+    argvector[i] = 0;                       // Used to determine the end of arg vector
 }
 
 
@@ -146,8 +147,13 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 		             int i)                               // commmand line number being processed
 {
     char * argvector[MAX_CMD_LENGTH];
-    parse_command(cmds, cmds, argvector);
-    
+    char command[MAX_CMD_LENGTH];
+    parse_command(cmds, command, argvector);
+    printf("This is the command: %s\n", argvector[0]);
+    if(execvp(argvector[0], argvector))
+    {
+        perror("execvp: ");
+    }
 }
 
 
@@ -158,8 +164,7 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 
 void waitPipelineTermination ()
 {
-
-
+    int status;
 }
 
 /********************************************************************************/
@@ -169,7 +174,8 @@ void waitPipelineTermination ()
 /*  control loop, asking for the next pipe command input.                       */
 /********************************************************************************/
 
-void killPipeline( int signum ) {
+void killPipeline( int signum )
+{
 
 
 }
