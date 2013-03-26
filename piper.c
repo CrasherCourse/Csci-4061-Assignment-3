@@ -66,7 +66,6 @@ int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_
     command = strtok(commandLine, "|");
     while(command != NULL)
     {
-        printf("%d: %s\n", i, command);
         if(i > 8)                               // Check if there are too many commands
         {
             printf("Too many commands!\n");
@@ -74,10 +73,11 @@ int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_
             
         }
         cmds[i] = command;                      // Save the command
+        fprintf(logfp, "Command %d info: %s\n", i, command);
         i++;
         command = strtok(NULL, "|");
     }
-    printf("finished parsing\n");
+    fprintf(logfp, "Number of commands from the input : %d\n", i);
     return i;
 }
 
@@ -102,12 +102,11 @@ void parse_command(char input[MAX_CMD_LENGTH],
     char * token;
     char ** save;
     
-    printf("Command: %s\n", input);
+    //printf("Command: %s\n", input);
     token = strtok(input, " ");
     command = token;
     while(token != NULL)
-    {
-        printf("argv[%d]: %s\n", i, token);
+    {;
         argvector[i++] = token;
         token = strtok(NULL, " ");
     }
@@ -126,7 +125,18 @@ void print_info(char* cmds[MAX_CMDS_NUM],
                 int cmd_stat[MAX_CMDS_NUM],
                 int num_cmds)
 {
-  
+    #ifdef DEBUG
+    int i;
+    if(logfp == NULL)
+    {
+        // something about null pointers
+    }
+        fprintf(logfp, "PID        COMMAND        EXIT\n");
+    for(i = 0; i < num_cmds; i++)
+    {
+        fprintf(logfp, "%-6d\t%s\t%6d\n", cmd_pids[i], cmds[i], cmd_stat[i]);
+    }
+    #endif
 }  
 
 
@@ -148,11 +158,41 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 {
     char * argvector[MAX_CMD_LENGTH];
     char command[MAX_CMD_LENGTH];
+    static int pipeid[2];
+    static int oldpiperead;
+    
     parse_command(cmds, command, argvector);
-    printf("This is the command: %s\n", argvector[0]);
-    if(execvp(argvector[0], argvector))
+    //printf("This is the command: %s\n", argvector[0]);
+
+
+    if(i != (num_cmds - 1))                                 // if not the last command
+    {
+        pipe( pipeid );                                     // Create a new pipeline 
+    }
+    
+    if(cmd_pids[i] = fork())                                // Fork Here
+    {
+        return;                                             // Exit if the parent
+    }
+    
+    if(i != 0)                                              // link the previous pipe's read
+    {
+        dup2(oldpiperead, 0);
+        close( oldpiperead );
+    }
+    
+    if(i != (num_cmds - 1))                                 // if not the last command
+    {
+        dup2(pipeid[1], 1);
+        oldpiperead = pipeid[0];                            // Save the current pipe's read
+    }
+    else close(pipeid[0]);
+    close(pipeid[1]);
+
+    if(execvp(argvector[0], argvector))                     // Exec command if child
     {
         perror("execvp: ");
+        exit (1);
     }
 }
 
@@ -164,7 +204,18 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 
 void waitPipelineTermination ()
 {
-    int status;
+    int status, cpid, i;
+    cpid = 0;
+    i = 0;
+    while(1)
+    {
+        cpid = wait(&status);
+        if(cpid == -1) break;
+        cmd_status[i] = WEXITSTATUS(status);
+        fprintf(logfp, "Waiting...process id %d finished\n", cpid);
+        fprintf(logfp, "Process id %d finished with exit status %d\n", cpid, cmd_status[i]);
+        i++;
+    }
 }
 
 /********************************************************************************/
@@ -176,8 +227,7 @@ void waitPipelineTermination ()
 
 void killPipeline( int signum )
 {
-
-
+    kill(-getpid(), 0);
 }
 
 /********************************************************************************/
