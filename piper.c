@@ -35,8 +35,12 @@
                                    // In the above pipeline we have 3 commands
 #define MAX_CMD_LENGTH 256         // A command has no more than 255 characters
 
+#define READY 0					// Used for logstate
+
+#define DONE 255
 FILE *logfp;
 
+char logstate = READY;
 int num_cmds = 0;
 char *cmds[MAX_CMDS_NUM];
 int cmd_pids[MAX_CMDS_NUM];
@@ -158,7 +162,7 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 {
     char * argvector[MAX_CMD_LENGTH];
     char command[MAX_CMD_LENGTH];
-    static int pipeid[2];
+    int pipeid[2];
     static int oldpiperead;
     
     parse_command(cmds, command, argvector);
@@ -172,28 +176,40 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
     
     if(cmd_pids[i] = fork())                                // Fork Here
     {
+		if(i != (num_cmds - 1))
+		{
+			oldpiperead = pipeid[0];						// save the read end of the pipe
+			close( pipeid[1] );
+		}
+		else if( i != 0 )
+		{
+			close( pipeid[1] );
+			close( pipeid[0] );
+		}
         return;                                             // Exit if the parent
     }
     
-    if(i != 0)                                              // link the previous pipe's read
-    {
-        dup2(oldpiperead, 0);
-        close( oldpiperead );
-    }
-    
-    if(i != (num_cmds - 1))                                 // if not the last command
-    {
-        dup2(pipeid[1], 1);
-        oldpiperead = pipeid[0];                            // Save the current pipe's read
-    }
-    else close(pipeid[0]);
-    close(pipeid[1]);
+    else
+    {													// Child continues here
+		if(i != 0)                                      // link the previous pipe's read
+		{
+			dup2(oldpiperead, 0);
+			close( oldpiperead );
+		}
+		
+		if(i != (num_cmds - 1))                         // if not the last command
+		{
+			dup2(pipeid[1], 1);							// dup stdout to pipe's write
+		}
+		close(pipeid[0]);								// close pipeids
+		close(pipeid[1]);
 
-    if(execvp(argvector[0], argvector))                     // Exec command if child
-    {
-        perror("execvp: ");
-        exit (1);
-    }
+		if(execvp(argvector[0], argvector))            	// Exec command if child
+		{
+			perror("execvp: ");
+			exit (1);
+		}
+	}
 }
 
 
@@ -228,6 +244,7 @@ void waitPipelineTermination ()
 void killPipeline( int signum )
 {
     kill(-getpid(), 0);
+    printf("\n");				// Used to give space after ^C
 }
 
 /********************************************************************************/
