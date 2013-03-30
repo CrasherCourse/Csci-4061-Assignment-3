@@ -36,11 +36,14 @@
 #define MAX_CMD_LENGTH 256         // A command has no more than 255 characters
 
 #define READY 0					// Used for logstate
+#define TRUE 1
+#define FALSE 0
 
 #define DONE 255
 FILE *logfp;
 
 char logstate = READY;
+char bad_pipe = FALSE;
 int num_cmds = 0;
 char *cmds[MAX_CMDS_NUM];
 int cmd_pids[MAX_CMDS_NUM];
@@ -70,11 +73,11 @@ int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_
     command = strtok(commandLine, "|");
     while(command != NULL)
     {
-        if(i > 8)                               // Check if there are too many commands
+        if(i == MAX_CMDS_NUM)                               // Check if there are too many commands
         {
             printf("Too many commands!\n");
+            fprintf(logfp, "Too many commands in this command line:\n%s\n", commandLine);
             return -1;
-            
         }
         cmds[i] = command;                      // Save the command
         fprintf(logfp, "Command %d info: %s\n", i, command);
@@ -110,7 +113,7 @@ void parse_command(char input[MAX_CMD_LENGTH],
     token = strtok(input, " ");
     command = token;
     while(token != NULL)
-    {;
+    {
         argvector[i++] = token;
         token = strtok(NULL, " ");
     }
@@ -169,44 +172,46 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
     //printf("This is the command: %s\n", argvector[0]);
 
 
-    if(i != (num_cmds - 1))                                 // if not the last command
+    if(i != (num_cmds - 1))                                 // If not the last command
     {
         pipe( pipeid );                                     // Create a new pipeline 
     }
     
-    if(cmd_pids[i] = fork())                                // Fork Here
+    if(!bad_pipe && (cmd_pids[i] = fork()))                 // Fork Here
     {
-		if(i != (num_cmds - 1))
+		if(i != (num_cmds - 1))								// if not the last command
 		{
 			oldpiperead = pipeid[0];						// save the read end of the pipe
 			close( pipeid[1] );
 		}
-		else if( i != 0 )
+		else if ( i != 0 )									// if not the first and last command
 		{
-			close( pipeid[1] );
+			close( pipeid[1] );								// close the pipes if 
 			close( pipeid[0] );
 		}
         return;                                             // Exit if the parent
     }
     
     else
-    {													// Child continues here
-		if(i != 0)                                      // link the previous pipe's read
+    {														// Child continues here
+		if(i != 0)                                      	// link the previous pipe's read
 		{
 			dup2(oldpiperead, 0);
 			close( oldpiperead );
 		}
 		
-		if(i != (num_cmds - 1))                         // if not the last command
+		if(i != (num_cmds - 1))                        		// if not the last command
 		{
-			dup2(pipeid[1], 1);							// dup stdout to pipe's write
+			dup2(pipeid[1], 1);								// dup stdout to pipe's write
 		}
-		close(pipeid[0]);								// close pipeids
+		close(pipeid[0]);									// close pipeids
 		close(pipeid[1]);
 
 		if(execvp(argvector[0], argvector))            	// Exec command if child
 		{
 			perror("execvp: ");
+			fprintf(logfp, "Unexepected error occured with process %d terminating pipeline\n", getpid());
+			raise( SIGINT );								// sends SIGINT to terminate the pipeline
 			exit (1);
 		}
 	}
@@ -223,6 +228,13 @@ void waitPipelineTermination ()
     int status, cpid, i;
     cpid = 0;
     i = 0;
+    
+    if(bad_pipe)
+    {
+		kill(-getpid(), 0);
+		return;
+	}
+    
     while(1)
     {
         cpid = wait(&status);
@@ -243,7 +255,9 @@ void waitPipelineTermination ()
 
 void killPipeline( int signum )
 {
-    kill(-getpid(), 0);
+    kill(-getpid(), 0);			// Kill all child processes
+    num_cmds = -1; 				// To prevent continuing the pipe
+    //bad_pipe == TRUE;
     printf("\n");				// Used to give space after ^C
 }
 
@@ -295,6 +309,7 @@ int main(int ac, char *av[]){
     /* For example: for command "ls -l | grep ^d | wc -l "  it will      */
     /* create 3 processes; one to execute "ls -l", second for "grep ^d"  */
     /* and the third for executing "wc -l"                               */
+	bad_pipe = FALSE;
    
     for(i=0;i<num_cmds;i++){
          /*  CREATE A NEW PROCCES EXECUTTE THE i'TH COMMAND    */
@@ -308,6 +323,8 @@ int main(int ac, char *av[]){
     waitPipelineTermination();
 
     print_info(cmds, cmd_pids, cmd_status, num_cmds);
+    
+    fprintf(logfp, "---------------------------------------------------------------------\n"); // insert a divider between logs
 
   }
 } //end main
