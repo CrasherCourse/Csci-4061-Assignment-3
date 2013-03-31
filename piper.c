@@ -109,9 +109,7 @@ void parse_command(char input[MAX_CMD_LENGTH],
     char * token;
     char ** save;
     
-    //printf("Command: %s\n", input);
     token = strtok(input, " ");
-    command = token;
     while(token != NULL)
     {
         argvector[i++] = token;
@@ -169,15 +167,13 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
     static int oldpiperead;
     
     parse_command(cmds, command, argvector);
-    //printf("This is the command: %s\n", argvector[0]);
-
-
+    
     if(i != (num_cmds - 1))                                 // If not the last command
     {
         pipe( pipeid );                                     // Create a new pipeline 
     }
     
-    if(!bad_pipe && (cmd_pids[i] = fork()))                 // Fork Here
+    if((cmd_pids[i] = fork()))                 // Fork Here
     {
 		if(i != (num_cmds - 1))								// if not the last command
 		{
@@ -207,11 +203,11 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 		close(pipeid[0]);									// close pipeids
 		close(pipeid[1]);
 
-		if(execvp(argvector[0], argvector))            	// Exec command if child
+		if(execvp(argvector[0], argvector))            		// Exec command if child
 		{
 			perror("execvp: ");
-			fprintf(logfp, "Unexepected error occured with process %d terminating pipeline\n", getpid());
-			raise( SIGINT );								// sends SIGINT to terminate the pipeline
+			fprintf(logfp, "An Execution error occured with process %d terminating pipeline\n", getpid());
+			kill(getppid(), SIGINT );						// Sends a SIGINT to parent the if exec fails 
 			exit (1);
 		}
 	}
