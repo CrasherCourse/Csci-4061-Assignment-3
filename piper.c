@@ -131,19 +131,19 @@ void print_info(char* cmds[MAX_CMDS_NUM],
 {
     #ifdef DEBUG
     int i;
-    if(pipe_done)
-		fprintf(logfp, "PID        COMMAND        EXIT\n");
+    if(pipe_done)							//Print out column titles
+		fprintf(logfp, "PID        COMMAND            EXIT\n");
 	else
 		fprintf(logfp, "PID        COMMAND\n");
     for(i = 0; i < num_cmds; i++)
     {
-		if(pipe_done)
+		if(pipe_done)						// Print out pid, command, and exit status
 		{
-			fprintf(logfp, "%-6d\t%s\t%6d\n", cmd_pids[i], cmds[i], cmd_stat[i]);
+			fprintf(logfp, "%-6d     %-12s\t%6d\n", cmd_pids[i], cmds[i], cmd_stat[i]);
 		}
 		else
 		{
-			fprintf(logfp, "%-6d\t%s\n", cmd_pids[i], cmds[i]);
+			fprintf(logfp, "%-6d     %-12s\n", cmd_pids[i], cmds[i]);
 		}
     }
     #endif
@@ -211,8 +211,8 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 		if(execvp(argvector[0], argvector))            		// Exec command if child
 		{
 			perror("execvp: ");								// If exec fails do this
-			//printf("Terminating the pipeline\n");
-
+			fprintf(logfp, "Process %d has failed.\n", getpid());
+		
 			kill(getppid(), SIGINT );						// Sends a SIGINT to parent the if exec fails 
 			kill(getpid(), SIGKILL);						// Kill self to prevent LOGFILE errors
 		}
@@ -253,7 +253,7 @@ void killPipeline( int signum )
 {
 	int i;
 	printf("Terminating the pipeline\n");
-	fprintf(logfp, "An Execution error occured with process %d terminating pipeline\n", getpid());
+	fprintf(logfp, "An Execution error occured terminating pipeline\n");
 	close( oldpiperead );				// Just in case
 	for(i = 0; i < num_cmds; i++)		// Kill all child processes
 	{
@@ -267,7 +267,7 @@ void killPipeline( int signum )
 int main(int ac, char *av[]){
 
   int i,  pipcount;
-  int count = 0;				// used to 
+  int count = 0;				// used for logfile
   //check usage
   if (ac > 1){
     printf("\nIncorrect use of parameters\n");
@@ -298,7 +298,7 @@ int main(int ac, char *av[]){
         printf("Goodbye!\n");
         exit(0);
      }  
-
+	fprintf(logfp, "Pipe #%d\n", count++);
     num_cmds = parse_command_line( pipeCommand, cmds);
 
     /*  SET UP SIGNAL HANDLER  TO HANDLE CNTRL-C                         */
