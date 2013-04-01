@@ -43,7 +43,6 @@
 FILE *logfp;
 
 char pipe_done = FALSE;
-char pipe_bad = FALSE;
 int num_cmds = 0;
 char *cmds[MAX_CMDS_NUM];
 int cmd_pids[MAX_CMDS_NUM];
@@ -232,11 +231,6 @@ void waitPipelineTermination ()
     cpid = 0;
     i = 0;
     
-    if(pipe_bad)								// just in case some commands were execed after bad command
-    {
-		raise( SIGINT );		
-	}
-    
     while(1)
     {
         cpid = wait(&status);					// wait for child to exit
@@ -260,10 +254,10 @@ void killPipeline( int signum )
 	int i;
 	printf("Terminating the pipeline\n");
 	fprintf(logfp, "An Execution error occured with process %d terminating pipeline\n", getpid());
-	close( oldpiperead );
-	for(i = 0; i < num_cmds; i++)		// Kill all child processes, reduce num_cmds to -1
+	close( oldpiperead );				// Just in case
+	for(i = 0; i < num_cmds; i++)		// Kill all child processes
 	{
-		if(cmd_pids[i] != 0) kill( cmd_pids[i] , SIGKILL);			
+		if(cmd_pids[i] != 0) kill( cmd_pids[i] , SIGKILL);		// Avoid sending kill to 0 (which kills parent)	
 	}
     printf("\n");				// Used to give space after ^C
 }
@@ -273,6 +267,7 @@ void killPipeline( int signum )
 int main(int ac, char *av[]){
 
   int i,  pipcount;
+  int count = 0;				// used to 
   //check usage
   if (ac > 1){
     printf("\nIncorrect use of parameters\n");
@@ -318,7 +313,6 @@ int main(int ac, char *av[]){
     /* and the third for executing "wc -l"                               */
    
 	pipe_done = FALSE;		// used by print_info
-	pipe_bad = FALSE;		// used to clean up unkilled execs
 	for(i=0;i<num_cmds;i++){
          /*  CREATE A NEW PROCCES EXECUTTE THE i'TH COMMAND    */
          /*  YOU WILL NEED TO CREATE A PIPE, AND CONNECT THIS NEW  */
@@ -339,4 +333,3 @@ int main(int ac, char *av[]){
 } //end main
 
 /*************************************************/
-
