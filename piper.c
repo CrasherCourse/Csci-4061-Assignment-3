@@ -212,7 +212,8 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 		if(execvp(argvector[0], argvector))            		// Exec command if child
 		{
 			perror("execvp: ");								// If exec fails do this
-			fprintf(logfp, "An Execution error occured with process %d terminating pipeline\n", getpid());
+			//printf("Terminating the pipeline\n");
+
 			kill(getppid(), SIGINT );						// Sends a SIGINT to parent the if exec fails 
 			exit (1);
 		}
@@ -231,7 +232,7 @@ void waitPipelineTermination ()
     cpid = 0;
     i = 0;
     
-    if(pipe_bad)
+    if(pipe_bad)								// just in case some commands were execed after bad command
     {
 		raise( SIGINT );		
 	}
@@ -257,6 +258,8 @@ void waitPipelineTermination ()
 void killPipeline( int signum )
 {
 	int i;
+	printf("Terminating the pipeline\n");
+	fprintf(logfp, "An Execution error occured with process %d terminating pipeline\n", getpid());
 	for(i = 0; i < num_cmds; i++)		// Kill all child processes, reduce num_cmds to -1
 	{
 		if(cmd_pids[i] != 0) kill( cmd_pids[i] , SIGKILL);			
