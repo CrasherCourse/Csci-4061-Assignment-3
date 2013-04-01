@@ -48,7 +48,7 @@ int num_cmds = 0;
 char *cmds[MAX_CMDS_NUM];
 int cmd_pids[MAX_CMDS_NUM];
 int cmd_status[MAX_CMDS_NUM]; 
-
+static int oldpiperead;
 
 /*******************************************************************************/
 /*   The function parse_command_line will take a string such as
@@ -170,7 +170,7 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
     char * argvector[MAX_CMD_LENGTH];
     char command[MAX_CMD_LENGTH];
     int pipeid[2];
-    static int oldpiperead;
+
     
     parse_command(cmds, command, argvector);
     
@@ -215,7 +215,7 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 			//printf("Terminating the pipeline\n");
 
 			kill(getppid(), SIGINT );						// Sends a SIGINT to parent the if exec fails 
-			exit (1);
+			kill(getpid(), SIGKILL);						// Kill self to prevent LOGFILE errors
 		}
 	}
 }
@@ -260,6 +260,7 @@ void killPipeline( int signum )
 	int i;
 	printf("Terminating the pipeline\n");
 	fprintf(logfp, "An Execution error occured with process %d terminating pipeline\n", getpid());
+	close( oldpiperead );
 	for(i = 0; i < num_cmds; i++)		// Kill all child processes, reduce num_cmds to -1
 	{
 		if(cmd_pids[i] != 0) kill( cmd_pids[i] , SIGKILL);			
