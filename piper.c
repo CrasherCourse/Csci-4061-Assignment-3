@@ -42,13 +42,12 @@
 #define DONE 255
 FILE *logfp;
 
-char logstate = READY;
-char bad_pipe = FALSE;
+char pipe_done = FALSE;
 int num_cmds = 0;
 char *cmds[MAX_CMDS_NUM];
 int cmd_pids[MAX_CMDS_NUM];
 int cmd_status[MAX_CMDS_NUM]; 
-
+static int oldpiperead;
 
 /*******************************************************************************/
 /*   The function parse_command_line will take a string such as
@@ -70,22 +69,22 @@ int parse_command_line (char commandLine[MAX_INPUT_LINE_LENGTH], char* cmds[MAX_
     char ** save;
     char * command;
 
-    command = strtok(commandLine, "|");
-    while(command != NULL)
+    command = strtok(commandLine, "|");							// Tokenize first part of commandLine
+    while(command != NULL)										// Keep tokenizing while we still have commands
     {
-        if(i == MAX_CMDS_NUM)                               // Check if there are too many commands
+        if(i == MAX_CMDS_NUM)                               	// Check if there are too many commands
         {
             printf("Too many commands!\n");
             fprintf(logfp, "Too many commands in this command line:\n%s\n", commandLine);
             return -1;
         }
-        cmds[i] = command;                      // Save the command
-        fprintf(logfp, "Command %d info: %s\n", i, command);
+        cmds[i] = command;                      				// Save the command
+        fprintf(logfp, "Command %d info: %s\n", i, command);	// Record to LOGFILE
         i++;
         command = strtok(NULL, "|");
     }
-    fprintf(logfp, "Number of commands from the input : %d\n", i);
-    return i;
+    fprintf(logfp, "Number of commands from the input : %d\n", i);	// Record number of commands to LOGFILE
+    return i;														// Return the number of commands
 }
 
 /*******************************************************************************/
@@ -109,13 +108,11 @@ void parse_command(char input[MAX_CMD_LENGTH],
     char * token;
     char ** save;
     
-    //printf("Command: %s\n", input);
-    token = strtok(input, " ");
-    command = token;
-    while(token != NULL)
+    token = command = strtok(input, " ");	// tokenize first part of the command, save it to command
+    while(token != NULL)					// while we have another token
     {
-        argvector[i++] = token;
-        token = strtok(NULL, " ");
+        argvector[i++] = token;				// Save token to argvector
+        token = strtok(NULL, " ");			
     }
     argvector[i] = 0;                       // Used to determine the end of arg vector
 }
@@ -134,14 +131,20 @@ void print_info(char* cmds[MAX_CMDS_NUM],
 {
     #ifdef DEBUG
     int i;
-    if(logfp == NULL)
-    {
-        // something about null pointers
-    }
-        fprintf(logfp, "PID        COMMAND        EXIT\n");
+    if(pipe_done)							//Print out column titles
+		fprintf(logfp, "PID        COMMAND            EXIT\n");
+	else
+		fprintf(logfp, "PID        COMMAND\n");
     for(i = 0; i < num_cmds; i++)
     {
-        fprintf(logfp, "%-6d\t%s\t%6d\n", cmd_pids[i], cmds[i], cmd_stat[i]);
+		if(pipe_done)						// Print out pid, command, and exit status
+		{
+			fprintf(logfp, "%-6d     %-12s\t%6d\n", cmd_pids[i], cmds[i], cmd_stat[i]);
+		}
+		else
+		{
+			fprintf(logfp, "%-6d     %-12s\n", cmd_pids[i], cmds[i]);
+		}
     }
     #endif
 }  
@@ -166,18 +169,16 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
     char * argvector[MAX_CMD_LENGTH];
     char command[MAX_CMD_LENGTH];
     int pipeid[2];
-    static int oldpiperead;
+
     
     parse_command(cmds, command, argvector);
-    //printf("This is the command: %s\n", argvector[0]);
-
-
+    
     if(i != (num_cmds - 1))                                 // If not the last command
     {
         pipe( pipeid );                                     // Create a new pipeline 
     }
     
-    if(!bad_pipe && (cmd_pids[i] = fork()))                 // Fork Here
+    if((cmd_pids[i] = fork()))                 	// Fork Here
     {
 		if(i != (num_cmds - 1))								// if not the last command
 		{
@@ -189,11 +190,11 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 			close( pipeid[1] );								// close the pipes if 
 			close( pipeid[0] );
 		}
-        return;                                             // Exit if the parent
+        return;                                 // Parent Exits Here
     }
     
     else
-    {														// Child continues here
+    {											// Child continues here
 		if(i != 0)                                      	// link the previous pipe's read
 		{
 			dup2(oldpiperead, 0);
@@ -207,12 +208,13 @@ void create_command_process (char cmds[MAX_CMD_LENGTH],  // Command line to be p
 		close(pipeid[0]);									// close pipeids
 		close(pipeid[1]);
 
-		if(execvp(argvector[0], argvector))            	// Exec command if child
+		if(execvp(argvector[0], argvector))            		// Exec command if child
 		{
-			perror("execvp: ");
-			fprintf(logfp, "Unexepected error occured with process %d terminating pipeline\n", getpid());
-			raise( SIGINT );								// sends SIGINT to terminate the pipeline
-			exit (1);
+			perror("execvp: ");								// If exec fails do this
+			fprintf(logfp, "Process %d has failed.\n", getpid());
+		
+			kill(getppid(), SIGINT );						// Sends a SIGINT to parent the if exec fails 
+			kill(getpid(), SIGKILL);						// Kill self to prevent LOGFILE errors
 		}
 	}
 }
@@ -229,17 +231,11 @@ void waitPipelineTermination ()
     cpid = 0;
     i = 0;
     
-    if(bad_pipe)
-    {
-		kill(-getpid(), 0);
-		return;
-	}
-    
     while(1)
     {
-        cpid = wait(&status);
-        if(cpid == -1) break;
-        cmd_status[i] = WEXITSTATUS(status);
+        cpid = wait(&status);					// wait for child to exit
+        if(cpid == -1) break;					// If no more children, break
+        cmd_status[i] = WEXITSTATUS(status);	// Save the exit status
         fprintf(logfp, "Waiting...process id %d finished\n", cpid);
         fprintf(logfp, "Process id %d finished with exit status %d\n", cpid, cmd_status[i]);
         i++;
@@ -255,9 +251,14 @@ void waitPipelineTermination ()
 
 void killPipeline( int signum )
 {
-    kill(-getpid(), 0);			// Kill all child processes
-    num_cmds = -1; 				// To prevent continuing the pipe
-    //bad_pipe == TRUE;
+	int i;
+	printf("Terminating the pipeline\n");
+	fprintf(logfp, "An Execution error occured terminating pipeline\n");
+	close( oldpiperead );				// Just in case
+	for(i = 0; i < num_cmds; i++)		// Kill all child processes
+	{
+		if(cmd_pids[i] != 0) kill( cmd_pids[i] , SIGKILL);		// Avoid sending kill to 0 (which kills parent)	
+	}
     printf("\n");				// Used to give space after ^C
 }
 
@@ -266,6 +267,7 @@ void killPipeline( int signum )
 int main(int ac, char *av[]){
 
   int i,  pipcount;
+  int count = 0;				// used for logfile
   //check usage
   if (ac > 1){
     printf("\nIncorrect use of parameters\n");
@@ -296,7 +298,7 @@ int main(int ac, char *av[]){
         printf("Goodbye!\n");
         exit(0);
      }  
-
+	fprintf(logfp, "Pipe #%d\n", count++);
     num_cmds = parse_command_line( pipeCommand, cmds);
 
     /*  SET UP SIGNAL HANDLER  TO HANDLE CNTRL-C                         */
@@ -309,9 +311,9 @@ int main(int ac, char *av[]){
     /* For example: for command "ls -l | grep ^d | wc -l "  it will      */
     /* create 3 processes; one to execute "ls -l", second for "grep ^d"  */
     /* and the third for executing "wc -l"                               */
-	bad_pipe = FALSE;
    
-    for(i=0;i<num_cmds;i++){
+	pipe_done = FALSE;		// used by print_info
+	for(i=0;i<num_cmds;i++){
          /*  CREATE A NEW PROCCES EXECUTTE THE i'TH COMMAND    */
          /*  YOU WILL NEED TO CREATE A PIPE, AND CONNECT THIS NEW  */
          /*  PROCESS'S stdin AND stdout  TO APPROPRIATE PIPES    */  
@@ -322,6 +324,7 @@ int main(int ac, char *av[]){
 
     waitPipelineTermination();
 
+	pipe_done = TRUE;
     print_info(cmds, cmd_pids, cmd_status, num_cmds);
     
     fprintf(logfp, "---------------------------------------------------------------------\n"); // insert a divider between logs
@@ -330,4 +333,3 @@ int main(int ac, char *av[]){
 } //end main
 
 /*************************************************/
-
